@@ -1,0 +1,8 @@
+deviceId=
+hostName=
+#From SAS Token:
+# HostName={your hub name}.azure-devices.net;DeviceId=javadevice;SharedAccessSignature=SharedAccessSignature sr={your hub name}.azure-devices.net%2Fdevices%2FMyDevice01%2Fapi-version%3D2016-11-14&sig=vSgHBMUG.....Ntg%3d&se=1456481802
+# Use:
+# SharedAccessSignature sr={your hub name}.azure-devices.net%2Fdevices%2FMyDevice01%2Fapi-version%3D2016-11-14&sig=vSgHBMUG.....Ntg%3d&se=1456481802
+# See https://docs.microsoft.com/en-us/azure/iot-hub/iot-hub-mqtt-support
+SharedAccessSignature=
