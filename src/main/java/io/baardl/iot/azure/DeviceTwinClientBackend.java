@@ -1,0 +1,196 @@
+package io.baardl.iot.azure;
+
+import com.microsoft.azure.sdk.iot.service.devicetwin.*;
+import com.microsoft.azure.sdk.iot.service.exceptions.IotHubException;
+import com.microsoft.azure.sdk.iot.service.jobs.JobResult;
+import com.microsoft.azure.sdk.iot.service.jobs.JobStatus;
+import org.slf4j.Logger;
+
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.util.*;
+
+import static org.slf4j.LoggerFactory.getLogger;
+
+/**
+ * Hello world!
+ */
+public class DeviceTwinClientBackend {
+    private static final Logger log = getLogger(DeviceTwinClientBackend.class);
+    private static final int TEMPERATURE_RANGE = 100;
+    private static final int HUMIDITY_RANGE = 100;
+    private static final long WAIT_1_SECOND_TO_CANCEL_IN_MILLISECONDS = 1000L;
+    private static final long GIVE_100_MILLISECONDS_TO_IOTHUB = 100L;
+    private static final long ADD_10_SECONDS_IN_MILLISECONDS = 10000L;
+    private static final long ADD_10_MINUTES_IN_MILLISECONDS = 600000L;
+    private static final long MAX_EXECUTION_TIME_IN_SECONDS = 100L;
+    private final String deviceId;
+    private final DeviceTwinDevice device;
+    private final DeviceTwin twinClient;
+
+    public DeviceTwinClientBackend(String sharedAccessPolicyConnectionString, String requestedDeviceId) throws URISyntaxException, IOException {
+        deviceId = requestedDeviceId;
+        device = new DeviceTwinDevice(deviceId);
+        twinClient = DeviceTwin.createFromConnectionString(sharedAccessPolicyConnectionString);
+    }
+
+    /**
+     * Manages device twin operations on IotHub
+     *
+     * @param args not used.
+     * @throws Exception Throws Exception if sample fails
+     */
+    public static void main(String[] args) throws Exception {
+        System.out.println("Starting sample...");
+        System.out.println("Creating the Device Twin");
+        //From https://docs.microsoft.com/en-us/azure/iot-hub/iot-hub-java-java-twin-getstarted
+        String sharedAccessPolicyConnectionString = "HostName=xx.azure-devices.net;SharedAccessKeyName=serviceAndRegistryRead;SharedAccessKey=yy";
+        sharedAccessPolicyConnectionString = args[0];
+        //    public static final String deviceId = "baardl-iotegdehubdev";
+        DeviceTwinClientBackend client = new DeviceTwinClientBackend(sharedAccessPolicyConnectionString, "baardl-iotegdehubdev");
+
+
+        try {
+            // Manage complete twin
+            // ============================== get initial twin properties =============================
+            client.getInitialState();
+            Thread.sleep(1000);
+
+            // ================================ change desired property ===============================
+//            changeDesiredProperties(twinClient, device);
+
+            // ============================ schedule update desired property ==========================
+//            scheduleUpdateDesiredProperties(twinClient, device);
+
+            // =================================== cancel job scheduled ===============================
+//            cancelJob(twinClient, device);
+
+            // ================================= remove desired property ==============================
+//            removeDesiredProperties(twinClient, device);
+
+            // ======================================= query twin =====================================
+//            queryTwin(twinClient);
+        } catch (IotHubException e) {
+            System.out.println(e.getMessage());
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+        }
+
+        System.out.println("Shutting down sample...");
+    }
+
+    private void getInitialState() throws IOException, IotHubException {
+        System.out.println("Getting the Device twin");
+        twinClient.getTwin(device);
+        System.out.println(device);
+
+        //Update Twin Tags and Desired Properties
+        Set<Pair> tags = new HashSet<Pair>();
+        tags.add(new Pair("HomeID", UUID.randomUUID()));
+        tags.add(new Pair("IP", "127.0.0.1"));
+        device.setTags(tags);
+        twinClient.updateTwin(device);
+    }
+
+    private void changeDesiredProperties(DeviceTwin twinClient, DeviceTwinDevice device) throws IOException, IotHubException {
+        Set<Pair> desiredProperties = new HashSet<Pair>();
+        desiredProperties.add(new Pair("temp", new Random().nextInt(TEMPERATURE_RANGE)));
+        desiredProperties.add(new Pair("hum", new Random().nextInt(HUMIDITY_RANGE)));
+        device.setDesiredProperties(desiredProperties);
+
+        System.out.println("Updating Device twin (new temp, hum)");
+        twinClient.updateTwin(device);
+
+        System.out.println("Getting the updated Device twin");
+        twinClient.getTwin(device);
+        System.out.println(device);
+    }
+
+    private void removeDesiredProperties(DeviceTwin twinClient, DeviceTwinDevice device) throws IOException, IotHubException {
+        Set<Pair> desiredProperties = new HashSet<Pair>();
+        desiredProperties.add(new Pair("hum", null));
+        device.setDesiredProperties(desiredProperties);
+        System.out.println("Updating Device twin (remove hum)");
+        twinClient.updateTwin(device);
+
+        System.out.println("Getting the updated Device twin");
+        twinClient.getTwin(device);
+        System.out.println(device);
+    }
+
+    private void scheduleUpdateDesiredProperties(DeviceTwin twinClient, DeviceTwinDevice device) throws IOException, IotHubException, InterruptedException {
+        // new set of desired properties
+        Set<Pair> desiredProperties = new HashSet<Pair>();
+        desiredProperties.add(new Pair("temp", new Random().nextInt(TEMPERATURE_RANGE)));
+        desiredProperties.add(new Pair("hum", new Random().nextInt(HUMIDITY_RANGE)));
+        device.setDesiredProperties(desiredProperties);
+
+        // date when the update shall be executed
+        Date updateDateInFuture = new Date(new Date().getTime() + ADD_10_SECONDS_IN_MILLISECONDS); // 10 seconds in the future.
+
+        // query condition that defines the list of device to be updated
+        String queryCondition = "DeviceId IN ['" + deviceId + "']";
+
+        System.out.println("Schedule updating Device twin (new temp, hum) in 10 seconds");
+        Job job = twinClient.scheduleUpdateTwin(queryCondition, device, updateDateInFuture, MAX_EXECUTION_TIME_IN_SECONDS);
+
+        System.out.println("Wait for job completed...");
+        JobResult jobResult = job.get();
+        while (jobResult.getJobStatus() != JobStatus.completed) {
+            Thread.sleep(GIVE_100_MILLISECONDS_TO_IOTHUB);
+            jobResult = job.get();
+        }
+        System.out.println("job completed");
+
+        System.out.println("Getting the updated Device twin");
+        twinClient.getTwin(device);
+        System.out.println(device);
+    }
+
+    private void cancelJob(DeviceTwin twinClient, DeviceTwinDevice device) throws IOException, IotHubException, InterruptedException {
+        // new set of desired properties
+        Set<Pair> desiredProperties = new HashSet<Pair>();
+        desiredProperties.add(new Pair("temp", new Random().nextInt(TEMPERATURE_RANGE)));
+        desiredProperties.add(new Pair("hum", new Random().nextInt(HUMIDITY_RANGE)));
+        device.setDesiredProperties(desiredProperties);
+
+        // date when the update shall be executed
+        Date updateDateInFuture = new Date(new Date().getTime() + ADD_10_MINUTES_IN_MILLISECONDS); // 10 minutes in the future.
+
+        // query condition that defines the list of device to be updated
+        String queryCondition = "DeviceId IN ['" + deviceId + "']";
+
+        System.out.println("Schedule updating Device twin (new temp, hum) in 10 minutes");
+        Job job = twinClient.scheduleUpdateTwin(queryCondition, device, updateDateInFuture, MAX_EXECUTION_TIME_IN_SECONDS);
+
+        Thread.sleep(WAIT_1_SECOND_TO_CANCEL_IN_MILLISECONDS);
+        System.out.println("Cancel job after 1 second");
+        job.cancel();
+
+        System.out.println("Wait for job cancelled...");
+        JobResult jobResult = job.get();
+        while (jobResult.getJobStatus() != JobStatus.cancelled) {
+            Thread.sleep(GIVE_100_MILLISECONDS_TO_IOTHUB);
+            jobResult = job.get();
+        }
+        System.out.println("job cancelled");
+
+        System.out.println("Getting the updated Device twin (no changes)");
+        twinClient.getTwin(device);
+        System.out.println(device);
+    }
+
+    private static void queryTwin(DeviceTwin twinClient) throws IOException, IotHubException {
+        System.out.println("Started Querying twin");
+
+        SqlQuery sqlQuery = SqlQuery.createSqlQuery("*", SqlQuery.FromType.DEVICES, null, null);
+
+        Query twinQuery = twinClient.queryTwin(sqlQuery.getQuery(), 3);
+
+        while (twinClient.hasNextDeviceTwin(twinQuery)) {
+            DeviceTwinDevice d = twinClient.getNextDeviceTwin(twinQuery);
+            System.out.println(d);
+        }
+    }
+
+}

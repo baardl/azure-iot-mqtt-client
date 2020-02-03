@@ -28,3 +28,4 @@ azure-iot-mqtt-client.iml
 
 azure_iot_mqtt.properties
 
+/src/main/java/io/baardl/iot/azure/TestMe.java
